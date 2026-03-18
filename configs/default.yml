@@ -1,0 +1,39 @@
+# DocMiner default configuration
+# All values shown are the defaults; override only what you need.
+
+extraction:
+  preprocess_images: true
+  extract_tables: true
+  max_pages: null    # null = process all pages
+  ocr:
+    language: eng
+    dpi: 300
+    psm: 3           # Tesseract page segmentation mode (3 = fully automatic)
+    confidence_threshold: 30.0
+
+classification:
+  confidence_threshold: 0.35
+  use_ml_model: true
+
+analysis:
+  summary_sentences: 5
+  top_keywords: 15
+
+pipeline:
+  enable_layout: true
+  enable_classification: true
+  enable_entities: true
+  enable_entity_linking: true
+  enable_analysis: true
+
+storage:
+  backend: sqlite    # "sqlite" or "none"
+  db_path: docminer.db
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 1
+
+log_level: INFO
