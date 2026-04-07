@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +84,7 @@ def create_app(config=None):
     # CORS (permissive for development; restrict in production)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
