@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import tempfile
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -26,6 +26,32 @@ from docminer.api.schemas import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+_ALLOWED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp", ".gif"}
+
+
+def _safe_upload_suffix(filename: str | None) -> str:
+    """Extract a safe file-extension suffix from a user-supplied upload filename.
+
+    Guards against path traversal components, null bytes, and unexpected
+    characters embedded in the ``Content-Disposition`` filename header.
+    Returns a known-good suffix or falls back to ``".pdf"``.
+    """
+    if not filename:
+        return ".pdf"
+
+    # Use only the final component to strip any path traversal
+    basename = PurePosixPath(filename).name
+    basename = Path(basename).name  # also handle Windows separators
+
+    suffix = Path(basename).suffix.lower()
+
+    # Only allow known document/image extensions
+    if suffix in _ALLOWED_SUFFIXES:
+        return suffix
+
+    return ".pdf"
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +135,7 @@ async def extract_document(
     storage=Depends(get_storage),
 ):
     """Upload a document and receive structured extraction results."""
-    suffix = Path(file.filename or "upload").suffix.lower() or ".pdf"
+    suffix = _safe_upload_suffix(file.filename)
     try:
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             content = await file.read()
@@ -155,7 +181,7 @@ async def classify_document(
     pipeline=Depends(get_pipeline),
 ):
     """Upload a document and get its document type classification."""
-    suffix = Path(file.filename or "upload").suffix.lower() or ".pdf"
+    suffix = _safe_upload_suffix(file.filename)
     tmp_path = ""
     try:
         start = time.perf_counter()
