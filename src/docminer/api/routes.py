@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import tempfile
 import time
 from pathlib import Path, PurePosixPath
@@ -29,6 +30,19 @@ router = APIRouter()
 
 
 _ALLOWED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".webp", ".gif"}
+
+_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+def _validate_document_id(document_id: str) -> None:
+    """Validate a document_id path parameter. Raises HTTPException on failure."""
+    if len(document_id) > 128:
+        raise HTTPException(status_code=400, detail="document_id must be 128 characters or fewer")
+    if not re.match(r"^[a-zA-Z0-9_.-]+$", document_id):
+        raise HTTPException(
+            status_code=400,
+            detail="document_id must contain only alphanumeric characters, hyphens, underscores, and dots",
+        )
 
 
 def _safe_upload_suffix(filename: str | None) -> str:
@@ -137,8 +151,13 @@ async def extract_document(
     """Upload a document and receive structured extraction results."""
     suffix = _safe_upload_suffix(file.filename)
     try:
+        content = await file.read()
+        if len(content) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File exceeds maximum allowed size of {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB",
+            )
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
 
@@ -185,8 +204,13 @@ async def classify_document(
     tmp_path = ""
     try:
         start = time.perf_counter()
+        content = await file.read()
+        if len(content) > _MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File exceeds maximum allowed size of {_MAX_UPLOAD_BYTES // (1024 * 1024)}MB",
+            )
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
 
@@ -296,6 +320,7 @@ async def get_document(
     storage=Depends(get_storage),
 ):
     """Retrieve the stored metadata for a document by its ID."""
+    _validate_document_id(document_id)
     if storage is None:
         raise HTTPException(status_code=404, detail="Storage not configured")
 
